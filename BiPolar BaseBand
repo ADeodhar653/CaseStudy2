@@ -1,0 +1,100 @@
+% Bipolar, Baseband PAM transmitter
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Signal Generation
+% INPUT:  none
+% OUTPUT: binary data
+temp      = 'ESE 471';
+data      = text2bits(temp);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Modulation
+% INPUT: data
+% OUPUT: modulated values, x
+inputVec  = [0   1];
+outputVec = [-1  1];
+x         = lut(data, inputVec, outputVec);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Upsample
+% INPUT: modulated values, x
+% OUTPUT: modulated values at sampling rate, x_s
+x_s       = oversample(x,16);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Creating the Pulse Shape 
+Ts = 0.1; % Symbol period
+
+% Generate sinc pulse
+N = 16;
+Lp = 8;
+t = (-Lp:1/N:Lp);
+sincPulse = sinc(t);
+
+% Generate SRRC pulse
+alpha = 0.5;
+n = [(-N * Lp) : (N * Lp)] + 10^-9;
+srrcPulse = (1 / sqrt(N)) * (sin(pi * (1 - alpha) * n / N) + ...
+    (4 * alpha * n / N) .* cos(pi * (1 + alpha) * n / N)) ... 
+    ./ (pi * n / N .* (1 - (4 * alpha * n / N).^2));
+
+%%%%%% 
+s_bb = conv(x_s, srrcPulse);
+
+% Plot for project handout
+figure(1)
+h = plot(s, '-o');
+set(gca,'FontSize',20);
+set(gca,'ylim',[-0.5 0.5]);
+set(h,'LineWidth',2);
+xlabel('Sample')
+ylabel('Value')
+grid
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Matched filter
+% INPUT: baseband transmitted signal s
+% OUTPUT: matched-filtered signal y
+y         = filter(pulse, 1, s);
+
+
+% Plot for project handout
+figure(2)
+h = plot(y, '-o');
+set(gca,'FontSize',20)
+set(h,'LineWidth',2);
+xlabel('Sample')
+ylabel('Value')
+grid
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Time Synch
+% Input: Matched Filter output
+% OUTPUT: Synched MF output with samples at US_Rate, 2*US_Rate, ...
+y_s       = y(16:end);
+
+% Plot eye-diagram
+figure(3)
+h = plot_eye_diagram(y_s, 16, 0);
+set(gca,'ylim',[-1.1, 1.1]);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Downsample
+% INPUT: Synched matched filter output
+% OUTPUT: Symbol Samples (at n*T_s)
+US_Rate   = 16;
+r_hat     = y_s(US_Rate: US_Rate: end);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Bit decisions
+% INPUT: Symbol Samples
+% OUTPUT: Bits
+data_out = double(r_hat > 0);
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Translate to ascii text
+% INPUT: Bits
+% OUTPUT: Character vector, message_out
+message_out = binvector2str(data_out)
