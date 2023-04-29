@@ -1,0 +1,114 @@
+close all; clear all; clc;
+
+% Bipolar, Baseband PAM transmitter
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Signal Generation
+N = 10; % Number of bits
+data = 2 * ((rand(1, N) > 0.5) - 0.5); % random ±1
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Input Signal Parameters
+Tp = 0.1; % Half of the pulse duration
+samples_per_bit = 50;% Oversampling factor 
+SPB = samples_per_bit;
+pulse = 1-abs((-SPB:SPB)/SPB);
+dt = Tp / samples_per_bit; % Sampling period
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Making the slow version (5 bits / sec so there's no overlap)
+tSlow = -2*Tp:dt:Tp*2*N+2*Tp; % Enough for the full pulse + 2 conv
+dataSlow = zeros(1,length(tSlow));
+ySlow = zeros(1,length(tSlow));
+for i = 1:N
+	dataSlow(SPB*(2*i+1) + 1) = data(i);
+	i1 = SPB*(2*i) + 1;
+	i2 = SPB*(2*i+2) + 1;
+	ySlow(i1:i2) = ySlow(i1:i2) + data(i)*pulse;
+end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Making the fast version (10 bits / sec so there's overlap)
+tFast = -2*Tp:dt:Tp*N+2*Tp; % Enough for the full pulse + 2 conv
+dataFast = zeros(1,length(tFast));
+yFast = zeros(1,length(tFast));
+for i = 1:N
+	dataFast(SPB*(i+1.5) + 1) = data(i); %index of the center sample for the current bit %'1.5' offset is added to ensure that the center of the bit period coincides with the center sample of the pulse shape. The '+1' at the end is added because MATLAB indexing starts from 1 instead of 0.
+	i1 = SPB*(i+0.5) + 1;%Start indi
+	i2 = SPB*(i+2.5) + 1; % End indi
+	yFast(i1:i2) = yFast(i1:i2) + data(i)*pulse;
+end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+figure(1)
+
+% Plot p(t)
+subplot(8,2,1);
+plot(0:dt:dt*(length(pulse)-1), pulse);
+xlabel('Time (s)');
+ylabel('Pulse shape p(t)');
+title('Pulse shape p(t) and spectrum P(w)');
+
+% Plot P(omega)
+subplot(8,2,2);
+[P, w] = pwelch(pulse, [], [], [], 1/dt);
+plot(w, 10*log10(P));
+xlabel('Frequency (Hz)');
+ylabel('Power (dB)');
+title('Spectrum P(w)');
+
+subplot(8,2,3);
+hold on
+plot(tSlow,ySlow);
+stem(tSlow,dataSlow);
+
+subplot(8,2,4);
+hold on
+plot(tFast,yFast);
+stem(tFast,dataFast);
+
+plot_row = 3;
+sigmaList = (0.2:0.2:1);
+errorRateSlow = zeros(length(sigmaList));
+errorRateFast = zeros(length(sigmaList));
+for i = 1:length(sigmaList)
+	sigma = sigmaList(i);
+
+	rSlow = ySlow + sigma * randn(1, length(ySlow)); % Add noise to sent signal
+	rSlow = conv(rSlow,pulse); % Use the pulse as a filter for what we received
+	rSlow = rSlow(1+samples_per_bit:length(rSlow)-samples_per_bit); % Trim extra values
+	subplot(8,2,plot_row*2-1)
+	title('fb = 1/Tp, sigma = ' + string(sigma))
+	xlabel('Time (s)');
+	ylabel('Pulse shape');
+	hold on;2
+	plot(tSlow,rSlow)
+	dataReceived = 2*(rSlow>0)-1;
+	dataReceived = dataReceived .* abs(dataSlow); % Only check specific values
+	scalar = max(abs(rSlow));
+	stem(tSlow,scalar*dataReceived);
+	errorRateSlow(i) = sum(dataReceived.*dataSlow < 0) / N;
+	fprintf('Error rate: %.2f%%\n', errorRateSlow(i) * 100)
+
+	rFast = yFast + sigma * randn(1, length(yFast)); % Add noise to sent signal
+	rFast = conv(rFast,pulse); % Use the pulse as a filter for what we received
+	rFast = rFast(1+samples_per_bit:length(rFast)-samples_per_bit); % Trim extra values
+	subplot(8,2,plot_row*2)
+	title('fb = 1/(2Tp), sigma = ' + string(sigma))
+	xlabel('Time (s)');
+	ylabel('Pulse shape');
+	hold on;
+	plot(tFast,rFast)
+	dataReceived = 2*(rFast>0)-1;
+	dataReceived = dataReceived .* abs(dataFast); % Only check specific values
+	scalar = max(abs(rFast));
+	stem(tFast,scalar*dataReceived);
+	errorRateFast(i) = sum(dataReceived.*dataFast < 0) / N;
+	fprintf('Error rate: %.2f%%\n', errorRateFast(i) * 100)
+
+	plot_row = plot_row + 1;
+end
+
+subplot(8,2,15)
+plot(sigmaList,errorRateSlow)
+
+subplot(8,2,16)
+plot(sigmaList,errorRateFast)
+
+
