@@ -1,3 +1,6 @@
+ close all 
+ clear all clc;
+
 % Bipolar, Baseband PAM transmitter
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -8,7 +11,7 @@ temp      = 'ESE 471';
 data      = text2bits(temp);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Modulation
+% Modulation Scheme 
 % INPUT: data
 % OUPUT: modulated values, x
 inputVec  = [0   1];
@@ -16,81 +19,86 @@ outputVec = [-1  1];
 x         = lut(data, inputVec, outputVec);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Upsample
-% INPUT: modulated values, x
-% OUTPUT: modulated values at sampling rate, x_s
-x_s       = oversample(x,16);
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Creating the Pulse Shape 
+% Input Signal Parameters
+Tp = 0.1; % Half of the pulse duration
+samples_per_bit = 50; %Oversampling factor 
+SPB = samples_per_bit;
+dt = Tp / samples_per_bit; % Sampling period
 Ts = 0.1; % Symbol period
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Generate sinc pulse
-N = 16; %The symbol rate
-Lp = 8; %Duration of Pulse and symbol periods
+N = 16; % Symbol Rate
+Lp = 8;% % Duration of Pulse 
 t = (-Lp:1/N:Lp);
 sincPulse = sinc(t);
 
-% Generate SRRC pulse: Raised cosine filter
-alpha = 0.5; %The roll off factor 
+% Generate SRRC pulse
+alpha = 0.5;%Roll of factor 
+
+
 n = [(-N * Lp) : (N * Lp)] + 10^-9;
 srrcPulse = (1 / sqrt(N)) * (sin(pi * (1 - alpha) * n / N) + ...
     (4 * alpha * n / N) .* cos(pi * (1 + alpha) * n / N)) ... 
     ./ (pi * n / N .* (1 - (4 * alpha * n / N).^2));
+pulse=srrcPulse;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Oversample and Multiply by Pulse in Freq Domain
 
-%%%%%% 
-s_bb = conv(x_s, srrcPulse);
-
-% Plot for project handout
-figure(1)
-h = plot(s, '-o');
-set(gca,'FontSize',20);
-set(gca,'ylim',[-0.5 0.5]);
-set(h,'LineWidth',2);
-xlabel('Sample')
-ylabel('Value')
-grid
-
+t = -2*Tp:dt:Tp*2*N+2*Tp; % Enough for the full pulse + 2 conv
+UpSample_data = zeros(1,length(t));
+y = zeros(1, N*SPB + length(pulse) - 1);
+for i = 1:N
+	UpSample_data(SPB*(2*i+1) + 1) = x(i);
+	i1 = SPB*(2*i) + 1;
+	i2 = SPB*(2*i+2) + 1;
+	y(i1:i2) = y(i1:i2) + x(i)*pulse;
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Matched filter
-% INPUT: baseband transmitted signal s
-% OUTPUT: matched-filtered signal y
-y         = filter(pulse, 1, s);
-
-
-% Plot for project handout
-figure(2)
-h = plot(y, '-o');
-set(gca,'FontSize',20)
-set(h,'LineWidth',2);
-xlabel('Sample')
-ylabel('Value')
-grid
-
+%  Upconvert 
+wc = 2 * pi * 20; % 20Hz modulation
+z=cos(wc*t);
+y = y .* z;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Time Synch
-% Input: Matched Filter output
-% OUTPUT: Synched MF output with samples at US_Rate, 2*US_Rate, ...
-y_s       = y(16:end);
+% Add in Noise
+sigmaList = (0.2:0.2:1);
+errorRateSlow = zeros(length(sigmaList));
+errorRateFast = zeros(length(sigmaList));
+for i = 1:length(sigmaList)
+	sigma = sigmaList(i);
 
-% Plot eye-diagram
-figure(3)
-h = plot_eye_diagram(y_s, 16, 0);
-set(gca,'ylim',[-1.1, 1.1]);
+	rSlow = y + sigma * randn(1, length(y)); % Add noise to sent signal
+    
+    % DownConvert
+    rSlow = rSlow.*z; 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Downsample
-% INPUT: Synched matched filter output
-% OUTPUT: Symbol Samples (at n*T_s)
-US_Rate   = 16;
-r_hat     = y_s(US_Rate: US_Rate: end);
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Bit decisions
-% INPUT: Symbol Samples
-% OUTPUT: Bits
-data_out = double(r_hat > 0);
+
+    % Matched Filter acts like downsampling 
+	rSlow = conv(rSlow,pulse); % Use the pulse as a filter for what we received
+
+	rSlow = rSlow(1+samples_per_bit:length(rSlow)-samples_per_bit); % Trim extra values
+
+	subplot(8,2,plot_row*2-1)
+	title('fb = 1/Tp, sigma = ' + string(sigma))
+	xlabel('Time (s)');
+	ylabel('Pulse shape');
+	hold on;2
+
+    % Bit Descions 
+	plot([t,rSlow])
+	data_out = 2*(rSlow>0)-1;
+	data_out = data_out .* abs(UpSample_data); % Only check specific values
+	scalar = max(abs(rSlow));
+	stem(t,scalar*data_out);
+
+    %Calculate Error Rate
+	errorRateSlow(i) = sum(data_out.*UpSample_data < 0) / N;
+	fprintf('Error rate: %.2f%%\n', errorRateSlow(i) * 100)
+end 
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
