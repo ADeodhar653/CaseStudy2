@@ -26,13 +26,13 @@ x_s       = oversample(x,16);
 Ts = 0.1; % Symbol period
 
 % Generate sinc pulse
-N = 16;
-Lp = 8;
+N = 16; %The symbol rate
+Lp = 8; %Duration of Pulse and symbol periods
 t = (-Lp:1/N:Lp);
 sincPulse = sinc(t);
 
-% Generate SRRC pulse
-alpha = 0.5;
+% Generate SRRC pulse: Raised cosine filter
+alpha = 0.5; %The roll off factor 
 n = [(-N * Lp) : (N * Lp)] + 10^-9;
 srrcPulse = (1 / sqrt(N)) * (sin(pi * (1 - alpha) * n / N) + ...
     (4 * alpha * n / N) .* cos(pi * (1 + alpha) * n / N)) ... 
