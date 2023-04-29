@@ -17,10 +17,10 @@ dt = Tp / samples_per_bit; % Sampling period
 tSlow = -2*Tp:dt:Tp*2*N+2*Tp; % Enough for the full pulse + 2 conv
 dataSlow = zeros(1,length(tSlow));
 ySlow = zeros(1,length(tSlow));
-for i = 1:N
+for i = 1:N %Finding the center bit adds one b/c matlab
 	dataSlow(SPB*(2*i+1) + 1) = data(i);
-	i1 = SPB*(2*i) + 1;
-	i2 = SPB*(2*i+2) + 1;
+	i1 = SPB*(2*i) + 1; %Start index
+	i2 = SPB*(2*i+2) + 1; %End index
 	ySlow(i1:i2) = ySlow(i1:i2) + data(i)*pulse;
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -32,7 +32,7 @@ for i = 1:N
 	dataFast(SPB*(i+1.5) + 1) = data(i); %index of the center sample for the current bit %'1.5' offset is added to ensure that the center of the bit period coincides with the center sample of the pulse shape. The '+1' at the end is added because MATLAB indexing starts from 1 instead of 0.
 	i1 = SPB*(i+0.5) + 1;%Start indi
 	i2 = SPB*(i+2.5) + 1; % End indi
-	yFast(i1:i2) = yFast(i1:i2) + data(i)*pulse;
+	yFast(i1:i2) = yFast(i1:i2) + data(i)*pulse; %Pulse shape multiplied by start and end index.
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
