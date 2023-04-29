@@ -87,7 +87,7 @@ for i = 1:length(sigmaList)
 	fprintf('Error rate: %.2f%%\n', errorRateSlow(i) * 100)
 
 	rFast = yFast + sigma * randn(1, length(yFast)); % Add noise to sent signal
-	rFast = conv(rFast,pulse); % Use the pulse as a filter for what we received
+	rFast = conv(rFast,pulse); % Use the pulse as a filter for what we received. this is the matched filter
 	rFast = rFast(1+samples_per_bit:length(rFast)-samples_per_bit); % Trim extra values
 	subplot(8,2,plot_row*2)
 	title('fb = 1/(2Tp), sigma = ' + string(sigma))
