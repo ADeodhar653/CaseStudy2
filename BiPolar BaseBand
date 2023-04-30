@@ -46,7 +46,7 @@ srrcPulse = (1 / sqrt(N)) * (sin(pi * (1 - alpha) * n / N) + ... #Defines the sr
 pulse = srrcPulse;
 %pulse= sinc(t/Ts);
 
-t = (0:(N*SPB+length(pulse)-2)) * dt - Tp*2*N;
+t = (0:(N*SPB+length(pulse)-2)) * dt - Tp*2*N; %
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Oversample and Multiply x with Pulse in Time Domain
