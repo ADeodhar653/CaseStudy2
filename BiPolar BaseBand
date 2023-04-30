@@ -7,15 +7,15 @@
 % Signal Generation
 % INPUT:  none
 % OUTPUT: binary data
-temp      = 'ESE 471';
-data      = text2bits(temp);
+temp      = 'ESE 471'; #random string
+data      = text2bits(temp); #Turns ASCII to binary
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Modulation Scheme 
 % INPUT: data
 % OUPUT: modulated values, x
 inputVec  = [0   1];
 outputVec = [-1  1];
-x         = lut(data, inputVec, outputVec);
+x         = lut(data, inputVec, outputVec); %Takes the binary data and makes it bipolar (1,0) -> (1,-1)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -28,7 +28,7 @@ Ts = .1 % Symbol period
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Generate sinc pulse
-N = length(data); % Symbols per message 
+N = length(data); % Symbols per message <- so it is the length of the data
 Lp = 8;% % Duration of Pulse 
 
 
@@ -38,9 +38,9 @@ Lp = 8;% % Duration of Pulse
 % Generate SRRC pulse
 alpha = 0.5;%Roll of factor 
 
-n = [(-N * Lp) : (N * Lp)] + 10^-9;
+n = [(-N * Lp) : (N * Lp)] + 10^-9; %<- Length of the data times the pulse duration.
 
-srrcPulse = (1 / sqrt(N)) * (sin(pi * (1 - alpha) * n / N) + ...
+srrcPulse = (1 / sqrt(N)) * (sin(pi * (1 - alpha) * n / N) + ... #Defines the srrcPulse form from definition
     (4 * alpha * n / N) .* cos(pi * (1 + alpha) * n / N)) ... 
     ./ (pi * n / N .* (1 - (4 * alpha * n / N).^2));
 pulse = srrcPulse;
