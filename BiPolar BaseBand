@@ -51,17 +51,12 @@ t = (0:(N*SPB+length(pulse)-2)) * dt - Tp*2*N;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Oversample and Multiply x with Pulse in Time Domain
 
-UpSample_data = zeros(1, N * SPB);
-for i = 1:N
-    UpSample_data(SPB * (i - 1) + 1) = x(i);
-end
+t_bits = 0:Ts:(Ts*(N-1));
+t_x = gen_indexes(N*SPB, 0, dt);
+UpSample_data = binary2signal(x, t_x, t_bits);
 
-y = zeros(1, N*SPB + length(pulse) - 1);
-for i = 1:N
-    i1 = SPB * (i - 1) + 1;
-    i2 = i1 + length(pulse) - 1;
-    y(i1:i2) = y(i1:i2) + UpSample_data(i1) * pulse;
-end
+t_pulse = gen_indexes(length(pulse), 0, dt);
+[y, t] = easy_conv(UpSample_data, t_x, pulse, t_pulse, dt);
 
 % Plot original data
 figure;
@@ -116,7 +111,7 @@ for i = 1:length(sigmaList)
 
    % Bit Decisions 
     pulse_delay = floor(length(pulse) / 2);
-    start_point = pulse_delay +1;
+    start_point = pulse_delay +10;
 
     sample_points = start_point : SPB : (start_point + SPB*(length(data)-1));
     sample_points = sample_points(sample_points <= length(rSlow));
@@ -133,7 +128,7 @@ for i = 1:length(sigmaList)
     xlabel('Time');
     ylabel('Amplitude');
 
-
+ 
     %Calculate Error Rate
     errorRateSlow(i) = sum(data_out ~= data(1:length(data_out))) / length(data_out);
     fprintf('Error rate: %.2f%%\n', errorRateSlow(i) * 100)
@@ -145,3 +140,34 @@ end
 % INPUT: Bits
 % OUTPUT: Character vector, message_out
 message_out = binvector2str(data_out)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%Functions 
+
+function x = binary2signal(binary, t_x, t_bits)
+            x = [zeros(size(t_x))];
+            for i = 1:size(binary,2)
+                index = find_closest(t_x,t_bits(i));
+                x(index) = binary(i);
+            end 
+end
+
+
+function i_arr = gen_indexes(length, offset, dt)
+    i_arr = zeros(1,length);
+    for i = 1:length
+        i_arr(i) = (i*dt)-offset;
+    end 
+end
+
+function index = find_closest(array, value)
+    [d, ix] = min(abs(array-value));
+    index = ix;
+end
+
+function [c, c_index] = easy_conv(a, a_t, b, b_t, dt)
+    c = conv(a, b); % We are approximating CT from DT
+    a_offset = dt - a_t(1); % Extract offsets for a and b
+    b_offset = dt - b_t(1);
+    c_offset = a_offset + b_offset - dt; % Find the offset of resulting array
+    c_index = gen_indexes(size(c,2), c_offset, dt); % Generate new time array
+end
