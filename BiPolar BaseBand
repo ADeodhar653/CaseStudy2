@@ -1,6 +1,6 @@
  close all 
  clear all clc;
-
+%Every bit =  one symbol
 % Bipolar, Baseband PAM transmitter
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
