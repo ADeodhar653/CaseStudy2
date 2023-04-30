@@ -40,7 +40,7 @@ alpha = 0.5;%Roll of factor
 
 n = [(-N * Lp) : (N * Lp)] + 10^-9; %<- Length of the data times the pulse duration.
 
-srrcPulse = (1 / sqrt(N)) * (sin(pi * (1 - alpha) * n / N) + ... #Defines the srrcPulse form from definition
+srrcPulse = (1 / sqrt(N)) * (sin(pi * (1 - alpha) * n / N) + ... %Defines the srrcPulse form from definition
     (4 * alpha * n / N) .* cos(pi * (1 + alpha) * n / N)) ... 
     ./ (pi * n / N .* (1 - (4 * alpha * n / N).^2));
 pulse = srrcPulse;
