@@ -50,6 +50,7 @@ t = (0:(N*SPB+length(pulse)-2)) * dt - Tp*2*N; %
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Oversample and Multiply x with Pulse in Time Domain
+%We over sample to avoiding alisasing, and reduce intersymbol interference
 
 t_bits = 0:Ts:(Ts*(N-1));
 t_x = gen_indexes(N*SPB, 0, dt);
