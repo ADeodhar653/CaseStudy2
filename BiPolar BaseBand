@@ -24,7 +24,7 @@ Tp = 0.1; % Half of the pulse duration
 samples_per_bit = 50; %Oversampling factor 
 SPB = samples_per_bit;
 dt = Tp / samples_per_bit; % Sampling period
-Ts = .1 % Symbol period
+Ts = 0.1 % Symbol period
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Generate sinc pulse
@@ -52,7 +52,7 @@ t = (0:(N*SPB+length(pulse)-2)) * dt - Tp*2*N; %
 % Oversample and Multiply x with Pulse in Time Domain
 %We over sample to avoiding alisasing, and reduce intersymbol interference
 
-t_bits = 0:Ts:(Ts*(N-1));
+t_bits = 0:Ts:(Ts*(N-1)); 
 t_x = gen_indexes(N*SPB, 0, dt);
 UpSample_data = binary2signal(x, t_x, t_bits);
 
