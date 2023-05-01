@@ -1,174 +1,133 @@
- close all 
- clear all clc;
-%Every bit =  one symbol
+close all; clear all; clc;
 % Bipolar, Baseband PAM transmitter
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Signal Generation
 % INPUT:  none
 % OUTPUT: binary data
-temp      = 'ESE 471'; #random string
-data      = text2bits(temp); #Turns ASCII to binary
+temp      = 'ILoveMATLAB';
+data      = text2bits(temp);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Modulation Scheme 
+% Modulation Scheme
 % INPUT: data
 % OUPUT: modulated values, x
 inputVec  = [0   1];
 outputVec = [-1  1];
-x         = lut(data, inputVec, outputVec); %Takes the binary data and makes it bipolar (1,0) -> (1,-1)
-
+x         = lut(data, inputVec, outputVec);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 % Input Signal Parameters
-Tp = 0.1; % Half of the pulse duration
-samples_per_bit = 50; %Oversampling factor 
-SPB = samples_per_bit;
-dt = Tp / samples_per_bit; % Sampling period
-Ts = 0.1 % Symbol period
+Pulse_duration_in_seconds = 0.2;
+Time_per_symbol = Pulse_duration_in_seconds/2; % Assignmentrequirementtrying to packtomanysymbols
+Symbols_sent_per_second = 10;
+Numbers_sent_per_symbol = 50; % Upsample rate- adding in 0s for padding
+Numbers_sent_per_second = Numbers_sent_per_symbol * Symbols_sent_per_second; 
+Numbers_sent_per_pulse = Numbers_sent_per_second * Pulse_duration_in_seconds;
+Number_of_symbols_sent = length(x);
+Number_of_numbers_sent = Number_of_symbols_sent * Numbers_sent_per_symbol;
+Time_to_send_all = Time_per_symbol * Number_of_symbols_sent;
 
+Tp = Pulse_duration_in_seconds / 2; % Half of the pulse duration
+SPB = Numbers_sent_per_symbol;
+dt = 1 / Numbers_sent_per_second; % Sampling period
+Ts = 1 / Symbols_sent_per_second; % Symbol period
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Generate sinc pulse
-N = length(data); % Symbols per message <- so it is the length of the data
-Lp = 8;% % Duration of Pulse 
-
-
-
-
-
 % Generate SRRC pulse
-alpha = 0.5;%Roll of factor 
+pulse = SRRC(0.5,Numbers_sent_per_symbol,Number_of_symbols_sent)
+t = 0:(Number_of_numbers_sent+length(pulse)-2); % room for convolution
+t = dt * t; % Convert from index of number sent to time (in seconds) sent
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Oversample and then Convolute 
+UpSample_data = zeros(1, Number_of_numbers_sent);
+for i = 0:(Number_of_symbols_sent-1)
+   % Copy the signal of -1 and +1 into a list of zeros with correct spacing
+   UpSample_data(Numbers_sent_per_symbol*i + 1) = x(i+1);
+end
+y = conv(UpSample_data, pulse);
 
-n = [(-N * Lp) : (N * Lp)] + 10^-9; %<- Length of the data times the pulse duration.
-
-srrcPulse = (1 / sqrt(N)) * (sin(pi * (1 - alpha) * n / N) + ... %Defines the srrcPulse form from definition
-    (4 * alpha * n / N) .* cos(pi * (1 + alpha) * n / N)) ... 
-    ./ (pi * n / N .* (1 - (4 * alpha * n / N).^2));
-pulse = srrcPulse;
-%pulse= sinc(t/Ts);
-
-t = (0:(N*SPB+length(pulse)-2)) * dt - Tp*2*N; %
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Oversample and Multiply x with Pulse in Time Domain
-%We over sample to avoiding alisasing, and reduce intersymbol interference
-
-t_bits = 0:Ts:(Ts*(N-1)); 
-t_x = gen_indexes(N*SPB, 0, dt);
-UpSample_data = binary2signal(x, t_x, t_bits);
-
-t_pulse = gen_indexes(length(pulse), 0, dt);
-[y, t] = easy_conv(UpSample_data, t_x, pulse, t_pulse, dt);
-
-% Plot original data
-figure;
-stem(data);
-title('Original Data');
-xlabel('Index');
-ylabel('Value');
-
-% Plot oversampled data (UpSample_data)
-figure;
-stem(UpSample_data);
-title('Oversampled Data');
-xlabel('Index');
-ylabel('Value');
-
-% Plot modulated signal (y)
-figure;
-plot(y);
-title('Modulated Signal');
-xlabel('Time');
-ylabel('Amplitude');
-
-fprintf('The size of y is %d x %d\n', size(y));
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%  Upconvert 
+%  Upconvert
 wc = 2 * pi * 20; % 20Hz modulation
 z = cos(wc*t(1:length(y)));
+y1 = y;
 y = y .* z;
+y2 = y;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Add in Noise
-sigmaList = (0.2:0.2:1);
+sigmaList = (0:0.2:.8);
 errorRateSlow = zeros(length(sigmaList));
-errorRateFast = zeros(length(sigmaList));
+
 for i = 1:length(sigmaList)
     sigma = sigmaList(i);
+    rSlow = y + sigma * randn(1, length(y)); % Add noise to sent signal
 
-    %rSlow = y + sigma * randn(1, length(y)); % Add noise to sent signal
-    
     % DownConvert
-    rSlow = y.*z; 
+    rSlow = rSlow.*z;
 
-    % Matched Filter acts like downsampling 
-    rSlow = conv(rSlow,pulse); % Use the pulse as a filter for what we received
+    % Matched Filter acts like downsampling
+    rSlowFiltered = conv(rSlow, pulse); % Use the pulse as a filter for what we received
+    t_rConv = linspace(0, dt*(length(rSlowFiltered)-1), length(rSlowFiltered));
 
-    % Plot received signal before matched filter
+    % Adjust time vectors
+    t_rSlow = linspace(-dt*(length(pulse)-1), dt*(length(rSlow)-length(pulse)), length(rSlow));
+    t_rConv = linspace(-dt*(length(pulse)-1), dt*(length(rSlowFiltered)-length(pulse)), length(rSlowFiltered));
+
+    % Create a new figure for each sigma value
     figure;
-    plot(rSlow);
-    title('Received Signal Before Matched Filter');
+    title('Received Signal with Noise, Matched Filter Output, and Bit Decisions');
     xlabel('Time');
     ylabel('Amplitude');
+    hold on;
 
-   % Bit Decisions 
-    pulse_delay = floor(length(pulse) / 2);
-    start_point = pulse_delay +10;
+    % Plot Signal with Noise
+    %plot(t_rSlow, rSlow, 'b');
 
+    % Plot Matched Filter Output
+    plot(t_rConv, rSlowFiltered, 'g');
+
+    % Find Bit Indexs
+    start_point = length(pulse) - 1;
     sample_points = start_point : SPB : (start_point + SPB*(length(data)-1));
-    sample_points = sample_points(sample_points <= length(rSlow));
+    sample_points = sample_points(sample_points <= length(rSlowFiltered));
 
-    fprintf('The sample points are: ');
-    disp(sample_points);
+    % Bit Decisions
+    data_out = (rSlowFiltered(sample_points) > 0);
+    len_data_out = length(sample_points);
+    t_data_out = t_rConv(sample_points);
+    stem(t_data_out, (2*data_out)-1, 'r');
 
-    data_out = 2 * (rSlow(sample_points) > 0) - 1;
-
-    % Plot received signal after matched filter
-    figure;
-    plot(data_out);
-    title('Received Signal After Matched Filter');
-    xlabel('Time');
-    ylabel('Amplitude');
-
- 
-    %Calculate Error Rate
+    % Calculate Error Rate
     errorRateSlow(i) = sum(data_out ~= data(1:length(data_out))) / length(data_out);
-    fprintf('Error rate: %.2f%%\n', errorRateSlow(i) * 100)
+    fprintf('Error rate: %.2f%%\n', errorRateSlow(i) * 100);
+
+    hold off;
 end
 
+% Plot the Error Rate vs. Sigma
+figure(23);
+plot(sigmaList, errorRateSlow);
+title('Error Rate vs. Noise Level');
+xlabel('Sigma');
+ylabel('Error Rate');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Translate to ascii text
 % INPUT: Bits
 % OUTPUT: Character vector, message_out
 message_out = binvector2str(data_out)
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%Functions 
 
-function x = binary2signal(binary, t_x, t_bits)
-            x = [zeros(size(t_x))];
-            for i = 1:size(binary,2)
-                index = find_closest(t_x,t_bits(i));
-                x(index) = binary(i);
-            end 
+
+
+function h = SRRC(alpha, N, Lp)
+   % alpha = rolloff factor
+   % N = 1/2 of the quantity of numbers that will be sent per pulse
+   % Lp = number of pulses we'd like to leave room for
+   n = [(-N * Lp) : (N * Lp)] + 10^-9;
+   % Add epsilon to the n values to avoid numerical problems
+
+   % Plug into time domain formula for the SRRC pulse shape
+   h = (1 / sqrt(N)) * (sin(pi * (1 - alpha) * n / N) + ...
+      (4 * alpha * n / N) .* cos(pi * (1 + alpha) * n / N)) ... 
+      ./ (pi * n / N .* (1 - (4 * alpha * n / N).^2))
 end
 
 
-function i_arr = gen_indexes(length, offset, dt)
-    i_arr = zeros(1,length);
-    for i = 1:length
-        i_arr(i) = (i*dt)-offset;
-    end 
-end
-
-function index = find_closest(array, value)
-    [d, ix] = min(abs(array-value));
-    index = ix;
-end
-
-function [c, c_index] = easy_conv(a, a_t, b, b_t, dt)
-    c = conv(a, b); % We are approximating CT from DT
-    a_offset = dt - a_t(1); % Extract offsets for a and b
-    b_offset = dt - b_t(1);
-    c_offset = a_offset + b_offset - dt; % Find the offset of resulting array
-    c_index = gen_indexes(size(c,2), c_offset, dt); % Generate new time array
-end
