@@ -1,11 +1,6 @@
 close all; clear all; clc;
 % Bipolar, Baseband PAM transmitter
-%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Signal Generation
-% INPUT:  none
-% OUTPUT: binary data
-% Input Signal Parameters (TODO: delete anything not needed)
 Pulse_duration_in_seconds = 0.2;
 Time_per_symbol = Pulse_duration_in_seconds/2; % Assignment requirement
 Symbols_sent_per_second = 10;
@@ -15,37 +10,71 @@ Tp = Pulse_duration_in_seconds / 2; % Half of the pulse duration
 SPB = Numbers_sent_per_symbol;
 dt = 1 / Numbers_sent_per_second; % Sampling period
 Ts = 1 / Symbols_sent_per_second; % Symbol period
-% Generate pulse
+
+% Generate pulse SINC
 pulse = sinc((-Numbers_sent_per_symbol:Numbers_sent_per_symbol)/Numbers_sent_per_symbol);
 pulse_energy = sum(pulse.*pulse);
 pulse = pulse / pulse_energy^0.5; % Normalize the pulse
+
+
+%Generate Pulse SRRC
+%pulse = SRRC(0.5,Numbers_sent_per_symbol);
+%pulse_energy = sum(pulse.*pulse);
+%pulse = pulse / pulse_energy^0.5; % Normalize the pulse
+
+
+
 % Encode DATA
 data1 = text2bits('I Love MATLAB  ');
-data2 = text2bits('Hello There!   ');
-data3 = text2bits('Press F to Chat');
+data2 = text2bits('Sike Python    ');
+data3 = text2bits('is better      ');
+
 f1 = 2 * pi * 20;
-f2 = 2 * pi * 30;
-f3 = 2 * pi * 40;
-%Bandwith is 40hz
+f2 = 2 * pi * 40;
+f3 = 2 * pi * 60;
+
 [y1,y1BUS] = encode_NHern(data1, pulse, f1, Numbers_sent_per_symbol, dt);
 [y2,y2BUS] = encode_NHern(data2, pulse, f2, Numbers_sent_per_symbol, dt);
 [y3,y3BUS] = encode_NHern(data3, pulse, f3, Numbers_sent_per_symbol, dt);
 y = y1 + y2 + y3;
+
 figure(86)
+subplot(2, 1, 1)
 hold on
-plot(dt*(1:length(y1BUS)),y1BUS)
-plot(dt*(1:length(y2BUS)),y2BUS)
-plot(dt*(1:length(y3BUS)),y3BUS)
-figure(87)
+title('Modulated y(t) with SINC Before Upsample')
+xlabel('Time (s)')
+ylabel('Amplitude')
+
+xlim([0 2])
+plot(dt*(1:length(y1BUS)), y1BUS)
+plot(dt*(1:length(y2BUS)), y2BUS)
+plot(dt*(1:length(y3BUS)), y3BUS)
+legend('data1','data2','data3')
+
+subplot(2, 1, 2)
 hold on
-plot(dt*(1:length(y1)),y1)
-plot(dt*(1:length(y2)),y2)
-plot(dt*(1:length(y3)),y3)
+title('Modulated y(t) with SINC After Upsample')
+xlabel('Time (s)')
+ylabel('Amplitude')
+xlim([0 2])
+
+plot(dt*(1:length(y1)), y1)
+plot(dt*(1:length(y2)), y2)
+plot(dt*(1:length(y3)), y3)
+legend('data1','data2','data3')
+
+
 figure(88)
 hold on
-plot(abs(fft(y1,500)))
-plot(abs(fft(y2,500)))
-plot(abs(fft(y3,500)))
+title('Fourier Analysis of SINC Encoded Message at Bandwith of 20Hz')
+xlabel('Frequency (Hz)')
+ylabel('Magnitude')
+xlim([0, 80])
+legend('20Hz,30Hz', '40Hz')
+plot(abs(fft(y1, 500)))
+plot(abs(fft(y2, 500)))
+plot(abs(fft(y3, 500)))
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Zero-noise case
 r = y;  % y is sent, r is received, identical with 0 noise
@@ -66,11 +95,13 @@ errorRate = zeros(1,length(sigmaList));
 SNR = zeros(1,length(sigmaList));
 for i = 1:length(sigmaList)
  sigma = sigmaList(i);
+
  % y is sent, r is received, so add noise here
  r = y + sigma * noise;
  data_out1 = decode(r, pulse, f1, Numbers_sent_per_symbol, dt, 0);
  data_out2 = decode(r, pulse, f2, Numbers_sent_per_symbol, dt, 0);
  data_out3 = decode(r, pulse, f3, Numbers_sent_per_symbol, dt, 0);
+
  % Calculate Error Rate
  total_bits_sent = length(data_out1) + length(data_out2) + length(data_out3);
  msg1_errors = sum(data_out1 ~= data1);
@@ -99,11 +130,13 @@ y = y1 + y2 + y3;
 
 for i = 1:length(sigmaList)
  sigma = sigmaList(i);
+
  % y is sent, r is received, so add noise here
  r = y + sigma * noise;
  data_out1 = decode(r, pulse, f1, Numbers_sent_per_symbol, dt, 0);
  data_out2 = decode(r, pulse, f2, Numbers_sent_per_symbol, dt, 0);
  data_out3 = decode(r, pulse, f3, Numbers_sent_per_symbol, dt, 0);
+
  % Calculate Error Rate
  total_bits_sent = length(data_out1) + length(data_out2) + length(data_out3);
  msg1_errors = sum(data_out1 ~= data1);
@@ -111,6 +144,7 @@ for i = 1:length(sigmaList)
  msg3_errors = sum(data_out3 ~= data3);
  total_errors = msg1_errors + msg2_errors + msg3_errors;
  errorRate_SRRC(i) = total_errors / total_bits_sent;
+
  % fprintf('Error rate: %.2f%%\n', errorRate(i) * 100);
  signal_energy = sum(y.*y);
  noise_energy = sigma^2 * length(y);
@@ -125,6 +159,7 @@ plot(sigmaList, errorRate_SRRC);
 title('Error Rate vs. Noise Level');
 xlabel('Sigma');
 ylabel('Error Rate');
+legend('SINC','SRRC')
 
 % Plot the Error Rate vs. SNR
 figure(24);
@@ -134,6 +169,7 @@ plot(SNR_SRRC, errorRate_SRRC);
 title('Error Rate vs. SNR');
 xlabel('10 log( signal energy / noise energy )');
 ylabel('Error Rate');
+legend('SINC','SRRC')
 
 function [y, y_before_upsample] = encode_NHern(data, pulse, modfreq, Numbers_sent_per_symbol, dt)
  % Modulation Scheme
@@ -149,30 +185,43 @@ function [y, y_before_upsample] = encode_NHern(data, pulse, modfreq, Numbers_sen
  z = cos(modfreq*t(1:length(y_before_upsample)));
  y = y_before_upsample .* z;
 end
+
 function data_out = decode(r, pulse, modfreq, Numbers_sent_per_symbol, dt, do_plot)
  % DownConvert each frequency carried
  t = dt*(1:length(r));
  z = cos(modfreq*t);
+
+ %r = r+ .3 * randn(1, length(r)); % Add noise to sent signal; % Add noise to sent signal
  r = r.*z;
+ 
  % Use the pulse as a filter for what we received
  rFiltered = conv(r, pulse);
+
  % Find Bit Indices
  originial_length = length(r) - (length(pulse) - 1);
  symbols_sent = originial_length / Numbers_sent_per_symbol;
  sample_points = length(pulse) + Numbers_sent_per_symbol*(0:symbols_sent-1);
+ 
  % Bit Decisions
  data_out = (rFiltered(sample_points) > 0);
- if do_plot
+
+if do_plot
   figure(randi(10000))
-  title("Down-converted Signal Pre/Post Matched Filter freq "+ modfreq)
+  title("Down-converted Signal Pre/Post Matched Filter"+ modfreq)
+  xlabel('Time (s)')
+  ylabel('Amplitude')
+  xlim([0, 2])
   hold on;
-  plot(t,r,'b');
+  plot(t, r, 'b');
   rFiltIndex = 1:length(r);
   rFiltIndex = rFiltIndex + floor(length(pulse)/2);
   plot(t, rFiltered(rFiltIndex), 'Color', '#EDB120', 'LineWidth', 2);
   stem(t(sample_points - floor(length(pulse)/2)), (2*data_out)-1, 'r', 'LineWidth', 1.2);
- end
+  legend('Original Signal', 'Filtered Signal', 'Bit Decisions')
 end
+
+end
+
 function h = SRRC(alpha, N)
 % alpha = rolloff factor
 % N = 1/2 of the quantity of numbers that will be sent per pulse
